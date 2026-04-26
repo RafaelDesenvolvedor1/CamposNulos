@@ -10,7 +10,6 @@ __pycache__/
 # Seus dados de teste (Para não subir dados sensíveis ou pesados)
 /testes/
 *.csv
-*.txt
 
 # Pastas de sistema
 .DS_Store
