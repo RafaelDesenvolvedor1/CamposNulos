@@ -7,7 +7,7 @@
 6 - Após apagar as linhas, vai salvar o arquivo modificado na pasta 'modificado'.
 7 - vai somar todos os valores da coluna eu determinei no passo 4 e criar um arquivo.txt na pasta 'modificado'.
 """
-
+import os
 import pathlib
 import pandas as pd
 
@@ -19,10 +19,10 @@ def renderizarMenu():
     """)
 
 # Definir um caminho lógico
-CAMINHO_LOGICO = '/home/rafael/Compartilhado/python/testes/'
+CAMINHO_LOGICO = os.getenv('CAMINHO_PADRAO', '/app/dados/')
 
 # Coluna para verificar
-COLUNA_VERIFICAR = 'VALOR_OPR'
+COLUNA_VERIFICAR = os.getenv('COLUNA', 'VALOR_OPR')
 
 # Criar diretórios
 def retornarDataAtual():
