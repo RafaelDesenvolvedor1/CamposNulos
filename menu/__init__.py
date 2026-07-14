@@ -1,22 +1,38 @@
 import sys
 import pathlib
-from simple_term_menu import TerminalMenu
+import questionary
 
 # Arquivos de persistência de cache
 CACHE_FILE = pathlib.Path(__file__).parent / ".path_cache"
 HISTORY_FILE = pathlib.Path(__file__).parent / ".path_history"
 
 
-def menu(options, title):
-    return TerminalMenu(
-        options,
-        title=title,
-        menu_cursor='> ',
-        menu_cursor_style=("fg_cyan", "bold"),
-        cycle_cursor=True,
-        clear_screen=True,        # <-- Força a limpeza da tela antes de renderizar para evitar fantasmas
-        clear_menu_on_exit=True   # <-- Remove o menu da tela ao sair, mantendo o terminal limpo
-    )
+def menu_select(options, title):
+    """
+    Função auxiliar que substitui a criação do TerminalMenu.
+    Utiliza o questionary para renderizar uma lista de seleção com estilo customizado.
+    """
+    # O questionary limpa a tela de forma nativa ao atualizar os prompts se necessário.
+    # Usamos o estilo para emular o cursor ciano em negrito do seu menu anterior.
+    style = questionary.Style([
+        ('pointer', 'fg:cyan bold'),  # Estilo do cursor '> '
+        ('highlighted', 'fg:cyan bold'),  # Opção selecionada
+    ])
+
+    escolha = questionary.select(
+        title,
+        choices=options,
+        pointer='> ',
+        use_indicator=False,  # Remove indicadores extras para ficar idêntico ao seu anterior
+        style=style
+    ).ask()
+
+    # Se o usuário der Ctrl+C ou fechar o terminal de forma abrupta, retorna None
+    if escolha is None:
+        return None
+
+    # Para manter a lógica idêntica à sua, retornamos o ÍNDICE da opção escolhida
+    return options.index(escolha)
 
 
 def ler_historico():
@@ -24,7 +40,6 @@ def ler_historico():
     if not HISTORY_FILE.exists():
         return []
     linhas = HISTORY_FILE.read_text(encoding="utf-8").splitlines()
-    # Retorna apenas caminhos que ainda existem fisicamente na máquina
     return [l.strip() for l in linhas if l.strip() and pathlib.Path(l.strip()).exists()]
 
 
@@ -32,13 +47,10 @@ def salvar_no_historico(caminho):
     """Adiciona um caminho ao histórico, mantendo apenas os 5 mais recentes e sem duplicar."""
     caminhos = ler_historico()
 
-    # Se o caminho já existe, removemos para reinseri-lo no topo (mais recente)
     if caminho in caminhos:
         caminhos.remove(caminho)
 
     caminhos.insert(0, caminho)
-
-    # Limita aos 5 diretórios mais recentes
     caminhos = caminhos[:5]
 
     HISTORY_FILE.write_text("\n".join(caminhos), encoding="utf-8")
@@ -47,8 +59,8 @@ def salvar_no_historico(caminho):
 def escolherDir(forçar_selecao=False):
     # 1. Se já existir cache e não estivermos forçando, carrega o último direto
     if not forçar_selecao and CACHE_FILE.exists():
-        caminho_salvo = CACHE_FILE.read_text(encoding="utf-8").strip()
-        path_salvo = pathlib.Path(caminho_salvo)
+        caminho_saved = CACHE_FILE.read_text(encoding="utf-8").strip()
+        path_salvo = pathlib.Path(caminho_saved)
         if path_salvo.exists():
             print(f" Diretório carregado do cache: {path_salvo}")
             return str(path_salvo)
@@ -61,8 +73,7 @@ def escolherDir(forçar_selecao=False):
         opcoes_historico.append("[Navegar manualmente por outro diretório]")
         opcoes_historico.append(" [Sair]")
 
-        menu_hist = menu(opcoes_historico, "Escolha um diretório recente ou navegue:")
-        escolha_hist_idx = menu_hist.show()
+        escolha_hist_idx = menu_select(opcoes_historico, "Escolha um diretório recente ou navegue:")
 
         if escolha_hist_idx is None:
             sys.exit(0)
@@ -70,9 +81,7 @@ def escolherDir(forçar_selecao=False):
         opcao_hist = opcoes_historico[escolha_hist_idx]
 
         if "⭐" in opcao_hist:
-            # Recupera o caminho limpo (tirando o emoji "⭐ ")
             caminho_escolhido = opcao_hist.replace("⭐ ", "").strip()
-            # Atualiza o cache principal e o topo do histórico
             CACHE_FILE.write_text(caminho_escolhido, encoding="utf-8")
             salvar_no_historico(caminho_escolhido)
             print(f"\n⚡ Carregado via atalho: {caminho_escolhido}\n")
@@ -81,7 +90,7 @@ def escolherDir(forçar_selecao=False):
         elif "Sair" in opcao_hist:
             sys.exit(0)
 
-    # 3. Navegador Manual Tradicional (caso não escolha um recente)
+    # 3. Navegador Manual Tradicional
     diretorio_atual = pathlib.Path.cwd()
 
     while True:
@@ -94,9 +103,10 @@ def escolherDir(forçar_selecao=False):
         opcoes.extend(subpastas)
         opcoes.append("[Sair do Script] ")
 
-        menu_diretorio = menu(opcoes,
-                              f"Diretório atual: {diretorio_atual}\nSelecione uma pasta para entrar ou confirme:")
-        escolha_idx = menu_diretorio.show()
+        escolha_idx = menu_select(
+            opcoes,
+            f"Diretório atual: {diretorio_atual}\nSelecione uma pasta para entrar ou confirme:"
+        )
 
         if escolha_idx is None:
             sys.exit(0)
@@ -107,7 +117,6 @@ def escolherDir(forçar_selecao=False):
             caminho_final = str(diretorio_atual)
             print(f"\n Diretório de trabalho selecionado: {caminho_final}\n")
 
-            # Grava no cache e no histórico de recentes
             CACHE_FILE.write_text(caminho_final, encoding="utf-8")
             salvar_no_historico(caminho_final)
             return caminho_final
@@ -127,14 +136,16 @@ def escolherAcao():
         "Criar Pastas",
         "Corrigir Campos nulos",
         "Titulo não bancarizado",
-        "Trocar Diretório de Trabalho",  # Limpar/alterar o cache
+        "Trocar Diretório de Trabalho",
         "voltar"
     ]
 
-    menu_acao = menu(opcoes_acao, "Selecione a ação: ")
-
     while True:
-        idx_projeto = menu_acao.show()
+        idx_projeto = menu_select(opcoes_acao, "Selecione a ação: ")
+
+        # Caso o menu seja cancelado (Ctrl+C)
+        if idx_projeto is None:
+            return None
 
         match idx_projeto:
             case 0 | 1 | 2 | 3:
@@ -145,6 +156,4 @@ def escolherAcao():
 
 def menu_dinamico(filesList, titulo="Selecione a opção:"):
     opcoes_str = [str(item) for item in filesList]
-    # Passa o título customizado para a instância do TerminalMenu
-    menu_fileList = menu(opcoes_str, titulo)
-    return menu_fileList.show()
+    return menu_select(opcoes_str, titulo)
