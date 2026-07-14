@@ -1,15 +1,16 @@
 """
-1 - Definir um diretório para o script trabalhar (pode ser um caminho lógico)
-2 - Criar uma pasta pegando a data atual do sistema, dentro dessa pasta criar mais duas pastas(Original e Modificado).
-3 - Procurar o arquivo.csv dentro da pasta 'original'.
-4 - Vai analisar a coluna que eu determinar em uma constante e separar quais linhas dessa coluna estão vazias (Retorna uma lista do que encontrar).
-5 - Vai pegar a lista do passo anterior, excluir as linhas do arquivo.csv.
-6 - Após apagar as linhas, vai salvar o arquivo modificado na pasta 'modificado'.
-7 - vai somar todos os valores da coluna eu determinei no passo 4 e criar um arquivo.txt na pasta 'modificado'.
+1 - Definir o diretório
+2 - definir coluna a ser analisada
+3 - definir critério para remoção de linha
+4 - retornar o novo arquivo na pasta mod
 """
 
 import pathlib
 import pandas as pd
+import sys
+from simple_term_menu import TerminalMenu
+import menu
+
 
 def renderizarMenu():
     print("""
@@ -18,11 +19,6 @@ def renderizarMenu():
     (Pressione qualquer tecla para sair)  
     """)
 
-# Definir um caminho lógico
-CAMINHO_LOGICO = '/home/rafael/Compartilhado/python/testes/'
-
-# Coluna para verificar
-COLUNA_VERIFICAR = 'VALOR_OPR'
 
 # Criar diretórios
 def retornarDataAtual():
@@ -30,61 +26,131 @@ def retornarDataAtual():
     getDate = datetime.datetime.now()
     return getDate.strftime("%d-%m-%Y")
 
-def criarDiretorio(caminho, nomeDaPasta):
+
+def criarDiretorio(caminho):
     diretorio = pathlib.Path(caminho)
     dataHoje = retornarDataAtual()
-    caminhoDefinido = diretorio / dataHoje / nomeDaPasta
+    pastaIntermediaria = menu.menu_dinamico(['Data de hoje', 'Escolher nome', 'Sair'])
 
-    if not caminhoDefinido.exists():
-        caminhoDefinido.mkdir(parents=True)
-        print("Pasta criada com sucesso!")
-    else:
-        print("Diretório já foi criado")
+    match pastaIntermediaria:
+        case 0:
+            pastaIntermediaria = dataHoje
+        case 1:
+            pastaIntermediaria = input('Informe o nome do arquivo: ')
+        case _:
+            return
 
-# 3 - Procurar o arquivo.csv dentro da pasta 'original'.
+    dirOrig = diretorio / pastaIntermediaria / 'orig'
+    dirMod = diretorio / pastaIntermediaria / 'mod'
+
+    dirOrig.mkdir(parents=True, exist_ok=True)
+    dirMod.mkdir(parents=True, exist_ok=True)
+    print(f"\nPastas criadas com sucesso em: {pastaIntermediaria}")
+
+
+# NOVO MÉTODO: Permite o usuário navegar e escolher qual pasta quer processar
+def escolherSubdiretorio(caminho_base):
+    diretorio = pathlib.Path(caminho_base)
+
+    subdiretorios = [item.name for item in diretorio.iterdir() if item.is_dir()]
+
+    if not subdiretorios:
+        print("\n⚠️ Nenhuma pasta encontrada no diretório base! Crie uma primeiro.")
+        return None
+
+    print("\n--- Selecione a pasta do lote que deseja processar ---")
+    opcao = menu.menu_dinamico(subdiretorios)
+
+    if opcao is None:
+        return None
+
+    return diretorio / subdiretorios[opcao]
+
+
+# 3 - Procurar o arquivo.csv dentro da pasta 'orig'.
 def lisarArquivos(caminho):
     pasta = pathlib.Path(caminho)
+    # Lista arquivos .csv (inclusive os já marcados como [FEITO] para caso queira reprocessar)
     arquivos = [item.name for item in pasta.glob('*.csv') if item.is_file()]
     return arquivos
 
 
+# ALTERADO: Adicionada opção de voltar ao menu principal
 def escolherArquivo(lista_arquivos):
-    print("\n--- Arquivos encontrados na pasta Original ---")
-    for i, arquivo in enumerate(lista_arquivos, start=1):
-        print(f"[{i}] - {arquivo}")
+    # Criamos uma nova lista com a opção de voltar no topo
+    opcoes = ["[Voltar para o Menu Principal]"] + lista_arquivos
 
-    while True:
-        try:
-            opcao = int(input("\nDigite o número do arquivo que deseja processar: "))
-            if 1 <= opcao <= len(lista_arquivos):
-                return lista_arquivos[opcao - 1]
-            else:
-                print("Opção inválida! Escolha um número da lista.")
-        except ValueError:
-            print("Entrada inválida! Digite apenas o número.")
+    # Passamos o título desejado diretamente para o menu dinâmico
+    titulo_menu = "--- Arquivos encontrados na pasta Original (orig) ---"
+    opcao = menu.menu_dinamico(opcoes, titulo_menu)
 
-# 4 - Vai analisar a coluna que eu determinar em uma constante e separar quais linhas dessa coluna estão vazias (Retorna uma lista do que encontrar).
-def analisarCSV(arquivo ,coluna):
+    # Se o usuário apertar 'Esc' ou escolher a primeira opção (índice 0), retornamos None
+    if opcao is None or opcao == 0:
+        return None
+
+    # Como adicionamos um item no topo, o índice do arquivo real é 'opcao - 1'
+    return lista_arquivos[opcao - 1]
+
+# 4 - Vai analisar a coluna que eu determinar em uma constante e separar quais linhas dessa coluna estão vazias.
+def analisarCSV(arquivo, coluna):
     df = pd.read_csv(arquivo, sep=None, engine='python', encoding='utf-8-sig')
     vazias = df[df[coluna].isna() | (df[coluna].astype(str).str.strip() == "")]
     return df, vazias.index.tolist()
-    # print(f"Linhas em branco: {indices}")
+
+
+# 4.1 - Lê o arquivo de erro e extrai os N_DOCs (4ª coluna / índice 3)
+def analisarNdocs(caminho_erro):
+    if not caminho_erro.exists():
+        print(f"⚠️ Atenção: Arquivo de erro '{caminho_erro.name}' não encontrado nesta pasta!")
+        return []
+
+    df = pd.read_csv(caminho_erro, sep=';', header=None, engine='python', encoding='utf-8-sig')
+    valores_quarta_coluna = df[3].dropna().unique().tolist()
+
+    documentos_limpos = []
+    for val in valores_quarta_coluna:
+        try:
+            documentos_limpos.append(int(float(val)))
+        except ValueError:
+            documentos_limpos.append(str(val).strip())
+
+    return list(set(documentos_limpos))
+
 
 # 5 - Vai pegar a lista do passo anterior, excluir as linhas do arquivo.csv.
 def excluirLinhas(df_original, linhasVazias):
     df_novo = df_original.drop(index=linhasVazias)
     return df_novo
 
-# 6 - Após apagar as linhas, vai salvar o arquivo modificado na pasta 'modificado'.
-def modificarSalvar(arquivoEntrada, arquivoSaida, coluna):
-    df_origem, indices = analisarCSV(arquivoEntrada, coluna)
-    df_final = excluirLinhas(df_origem, indices)
-    df_final.to_csv(arquivoSaida, index=False, sep=';', encoding='utf-8-sig')
-    return df_final
 
-# 7 - vai somar todos os valores da coluna eu determinei no passo 4 e criar um arquivo.txt na pasta 'modificado'.
-def somarColuna(df, coluna):
-    total = pd.to_numeric(df[coluna], errors='coerce').sum()
+# 6 - Após apagar as linhas, vai salvar o arquivo modificado na pasta 'mod'.
+def modificarSalvar(arquivoEntrada, arquivoSaida, coluna):
+    if coluna == 'VALOR_OPR':
+        df_origem, indices = analisarCSV(arquivoEntrada, coluna)
+        df_final = excluirLinhas(df_origem, indices)
+        df_final.to_csv(arquivoSaida, index=False, sep=';', encoding='utf-8-sig')
+        return df_final
+
+    elif coluna == 'N_DOC':
+        caminho_erro = pathlib.Path(arquivoEntrada).parent / "error-report-0"
+
+        documentos_para_remover = analisarNdocs(caminho_erro)
+        print(f"Documentos identificados para remoção: {documentos_para_remover}")
+
+        df = pd.read_csv(arquivoEntrada, sep=';', header=None, engine='python', encoding='utf-8-sig')
+
+        df_final = df[~pd.to_numeric(df[3], errors='coerce').isin(documentos_para_remover)]
+
+        df_final.to_csv(arquivoSaida, index=False, header=False, sep=';', encoding='utf-8-sig')
+        return df_final
+
+
+# 7 - Vai somar todos os valores da coluna 'Valor operacional'
+def somarColuna(df):
+    if 'VALOR_OPR' in df.columns:
+        total = pd.to_numeric(df['VALOR_OPR'], errors='coerce').sum()
+    else:
+        total = pd.to_numeric(df[5], errors='coerce').sum()
     return total
 
 
@@ -94,21 +160,30 @@ def criarArquivoTXT(diretorio, nome_arquivo, soma_valor):
         f.write(f"Arquivo: {nome_arquivo} | Soma: R$ {soma_valor:.2f} \n")
 
 
-def resolverCamposNulos(caminho_base, coluna):
-    # 1. Preparar caminhos
-    data_hoje = retornarDataAtual()
-    pasta_original = pathlib.Path(caminho_base) / data_hoje / "original"
-    pasta_modificado = pathlib.Path(caminho_base) / data_hoje / "modificado"
+# NOME DO MÉTODO ATUALIZADO: fluxo genérico para processar qualquer limpeza de arquivo
+def processarArquivo(caminho_base, coluna):
+    # 1. Escolher interativamente qual lote/pasta processar
+    pasta_selecionada = escolherSubdiretorio(caminho_base)
+    if not pasta_selecionada:
+        return
 
-    # 2. Listar arquivos disponíveis
+    pasta_original = pasta_selecionada / "orig"
+    pasta_modificado = pasta_selecionada / "mod"
+
+    # 2. Listar arquivos disponíveis na pasta "orig" correspondente
     arquivos = lisarArquivos(pasta_original)
 
     if not arquivos:
-        print(f"Nenhum arquivo CSV encontrado em: {pasta_original}")
+        print(f"❌ Nenhum arquivo CSV encontrado em: {pasta_original}")
         return
 
     # 3. INTERAÇÃO COM USUÁRIO: Escolher qual arquivo processar
     nome_selecionado = escolherArquivo(arquivos)
+
+    # Se o usuário escolheu "Voltar" (retorna None), cancelamos a operação graciosamente
+    if nome_selecionado is None:
+        print("\n↩️ Operação cancelada. Retornando ao menu principal...")
+        return
 
     path_entrada = pasta_original / nome_selecionado
     path_saida = pasta_modificado / nome_selecionado
@@ -119,27 +194,34 @@ def resolverCamposNulos(caminho_base, coluna):
     df_limpo = modificarSalvar(path_entrada, path_saida, coluna)
 
     # 5. Gerar a soma e o relatório TXT
-    total = somarColuna(df_limpo, coluna)
+    total = somarColuna(df_limpo)
     criarArquivoTXT(pasta_modificado, nome_selecionado, total)
 
-    print(f"\n✅ Sucesso! Relatórios gerados na pasta 'modificado'.")
+    # 6. MARCAR COMO FEITO: Renomeia o arquivo original para indicar conclusão
+    if not nome_selecionado.startswith("[FEITO] - "):
+        novo_nome = f"[FEITO] - {nome_selecionado}"
+        path_entrada.rename(pasta_original / novo_nome)
+        print(f"� Arquivo original marcado como processado: '{novo_nome}'")
+
+    print(f"\n✅ Sucesso! Arquivo gerado e salvo na pasta 'mod'.")
+
+
+# Inicializa definindo o diretório de trabalho usando cache
+CAMINHO_LOGICO = menu.escolherDir()
 
 while True:
-    renderizarMenu()
-    escolha = input("Digite uma opção: ")
+    escolha = menu.escolherAcao()
 
     match escolha:
-        case '1':
-            criarDiretorio(CAMINHO_LOGICO, "original")
-            criarDiretorio(CAMINHO_LOGICO, "modificado")
-        case '2':
-            # Aqui ele já vai listar os arquivos e pedir o número
-            resolverCamposNulos(CAMINHO_LOGICO, COLUNA_VERIFICAR)
+        case 'Criar Pastas':
+            criarDiretorio(CAMINHO_LOGICO)
+        case 'Corrigir Campos nulos':
+            processarArquivo(CAMINHO_LOGICO, 'VALOR_OPR')
+        case 'Titulo não bancarizado':
+            processarArquivo(CAMINHO_LOGICO, 'N_DOC')
+        case 'Trocar Diretório de Trabalho':
+            # Força a re-seleção do diretório de trabalho e atualiza a variável global do loop
+            CAMINHO_LOGICO = menu.escolherDir(forçar_selecao=True)
         case _:
             print("Saindo...")
             break
-
-
-
-
-
