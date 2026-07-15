@@ -68,7 +68,7 @@ def escolherSubdiretorio(caminho_base):
 
 
 # 3 - Procurar o arquivo.csv dentro da pasta 'orig'.
-def lisarArquivos(caminho):
+def listarArquivos(caminho):
     pasta = pathlib.Path(caminho)
     # Lista arquivos .csv (inclusive os já marcados como [FEITO] para caso queira reprocessar)
     arquivos = [item.name for item in pasta.glob('*.csv') if item.is_file()]
@@ -92,10 +92,26 @@ def escolherArquivo(lista_arquivos):
     return lista_arquivos[opcao - 1]
 
 # 4 - Vai analisar a coluna que eu determinar em uma constante e separar quais linhas dessa coluna estão vazias.
-def analisarCSV(arquivo, coluna):
+def analisarCSV(arquivo, coluna, valores_remover=None):
+    # Usamos sep=None com o motor 'python' para auto-detectar o separador nos dois fluxos de forma idêntica
     df = pd.read_csv(arquivo, sep=None, engine='python', encoding='utf-8-sig')
-    vazias = df[df[coluna].isna() | (df[coluna].astype(str).str.strip() == "")]
-    return df, vazias.index.tolist()
+
+    if valores_remover is not None:
+        # 1. Convertemos os valores a remover para strings limpas
+        valores_remover_str = [str(val).strip() for val in valores_remover]
+
+        # 2. Convertemos a coluna alvo para strings limpas (ex: remove .0 de floats se houver)
+        coluna_str = df[coluna].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+
+        # 3. Pegamos os índices exatos de onde esses valores aparecem
+        filtrados = df[coluna_str.isin(valores_remover_str)]
+        indices = filtrados.index.tolist()
+    else:
+        # Fluxo original de campos nulos
+        vazias = df[df[coluna].isna() | (df[coluna].astype(str).str.strip() == "")]
+        indices = vazias.index.tolist()
+
+    return df, indices
 
 
 # 4.1 - Lê o arquivo de erro e extrai os N_DOCs (4ª coluna / índice 3)
@@ -118,8 +134,8 @@ def analisarNdocs(caminho_erro):
 
 
 # 5 - Vai pegar a lista do passo anterior, excluir as linhas do arquivo.csv.
-def excluirLinhas(df_original, linhasVazias):
-    df_novo = df_original.drop(index=linhasVazias)
+def excluirLinhas(df_original, linhasExcluir):
+    df_novo = df_original.drop(index=linhasExcluir)
     return df_novo
 
 
@@ -134,14 +150,20 @@ def modificarSalvar(arquivoEntrada, arquivoSaida, coluna):
     elif coluna == 'N_DOC':
         caminho_erro = pathlib.Path(arquivoEntrada).parent / "error-report-0"
 
+        # 1. Separamos os títulos do error-report-0
         documentos_para_remover = analisarNdocs(caminho_erro)
         print(f"Documentos identificados para remoção: {documentos_para_remover}")
 
-        df = pd.read_csv(arquivoEntrada, sep=';', header=None, engine='python', encoding='utf-8-sig')
+        # 2. Como seu arquivo original tem cabeçalho (VALOR_OPR, N_DOC, etc.),
+        # a 4ª coluna real tem o nome correspondente (no caso, 'N_DOC')
+        # Buscamos os índices dessas linhas usando nossa nova versão da analisarCSV
+        df_origem, indices = analisarCSV(arquivoEntrada, coluna, valores_remover=documentos_para_remover)
 
-        df_final = df[~pd.to_numeric(df[3], errors='coerce').isin(documentos_para_remover)]
+        # 3. Excluímos as linhas usando o mesmo método físico de drop por índice
+        df_final = excluirLinhas(df_origem, indices)
 
-        df_final.to_csv(arquivoSaida, index=False, header=False, sep=';', encoding='utf-8-sig')
+        # 4. Salvamos mantendo o cabeçalho original
+        df_final.to_csv(arquivoSaida, index=False, sep=';', encoding='utf-8-sig')
         return df_final
 
 
@@ -171,7 +193,7 @@ def processarArquivo(caminho_base, coluna):
     pasta_modificado = pasta_selecionada / "mod"
 
     # 2. Listar arquivos disponíveis na pasta "orig" correspondente
-    arquivos = lisarArquivos(pasta_original)
+    arquivos = listarArquivos(pasta_original)
 
     if not arquivos:
         print(f"❌ Nenhum arquivo CSV encontrado em: {pasta_original}")
@@ -206,22 +228,26 @@ def processarArquivo(caminho_base, coluna):
     print(f"\n✅ Sucesso! Arquivo gerado e salvo na pasta 'mod'.")
 
 
-# Inicializa definindo o diretório de trabalho usando cache
-CAMINHO_LOGICO = menu.escolherDir()
+def main():
+    # Inicializa definindo o diretório de trabalho usando cache
+    CAMINHO_LOGICO = menu.escolherDir()
 
-while True:
-    escolha = menu.escolherAcao()
+    while True:
+        escolha = menu.escolherAcao()
 
-    match escolha:
-        case 'Criar Pastas':
-            criarDiretorio(CAMINHO_LOGICO)
-        case 'Corrigir Campos nulos':
-            processarArquivo(CAMINHO_LOGICO, 'VALOR_OPR')
-        case 'Titulo não bancarizado':
-            processarArquivo(CAMINHO_LOGICO, 'N_DOC')
-        case 'Trocar Diretório de Trabalho':
-            # Força a re-seleção do diretório de trabalho e atualiza a variável global do loop
-            CAMINHO_LOGICO = menu.escolherDir(forçar_selecao=True)
-        case _:
-            print("Saindo...")
-            break
+        match escolha:
+            case 'Criar Pastas':
+                criarDiretorio(CAMINHO_LOGICO)
+            case 'Corrigir Campos nulos':
+                processarArquivo(CAMINHO_LOGICO, 'VALOR_OPR')
+            case 'Titulo não bancarizado':
+                processarArquivo(CAMINHO_LOGICO, 'N_DOC')
+            case 'Trocar Diretório de Trabalho':
+                # Força a re-seleção do diretório de trabalho e atualiza a variável global do loop
+                CAMINHO_LOGICO = menu.escolherDir(forçar_selecao=True)
+            case _:
+                print("Saindo...")
+                break
+
+
+main()
