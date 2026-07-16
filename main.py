@@ -52,19 +52,28 @@ def criarDiretorio(caminho):
 def escolherSubdiretorio(caminho_base):
     diretorio = pathlib.Path(caminho_base)
 
-    subdiretorios = [item.name for item in diretorio.iterdir() if item.is_dir()]
+    # 1. Filtramos apenas os diretórios dentro do caminho base
+    subdiretorios_path = [item for item in diretorio.iterdir() if item.is_dir()]
 
-    if not subdiretorios:
+    if not subdiretorios_path:
         print("\n⚠️ Nenhuma pasta encontrada no diretório base! Crie uma primeiro.")
         return None
 
+    # 2. Ordenamos os objetos Path pela data de modificação (st_mtime)
+    # reverse=True garante que as pastas criadas/modificadas MAIS RECENTEMENTE fiquem no topo da lista (índice 0)
+    subdiretorios_path.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+
+    # 3. Extraímos apenas os nomes para exibir no menu dinâmico
+    subdiretorios_nomes = [item.name for item in subdiretorios_path]
+
     print("\n--- Selecione a pasta do lote que deseja processar ---")
-    opcao = menu.menu_dinamico(subdiretorios)
+    opcao = menu.menu_dinamico(subdiretorios_nomes)
 
     if opcao is None:
         return None
 
-    return diretorio / subdiretorios[opcao]
+    # 4. Retornamos o caminho completo baseado no objeto Path ordenado correspondente
+    return subdiretorios_path[opcao]
 
 
 # 3 - Procurar o arquivo.csv dentro da pasta 'orig'.
