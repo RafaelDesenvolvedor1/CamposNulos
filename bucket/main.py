@@ -12,3 +12,27 @@ def bx_vox(transactionuid, destino):
         s3_keys=caminho,
         pasta_destino=destino
     )
+
+def bx_cred(transactionuid, destino):
+    bucket_name = 'backend-prd-bauk'
+    caminho_bx = buscar_arquivos(
+        bucket_name=bucket_name,
+        caminho=f'crediffato/prd/{transactionuid}/m1/downloadFile/',
+    )
+
+    baixar_arquivos_s3(
+        bucket_name=bucket_name,
+        s3_keys=caminho_bx,
+        pasta_destino=destino
+    )
+
+    caminho_error_report= buscar_arquivos(
+        bucket_name=bucket_name,
+        caminho=f'crediffato/prd/{transactionuid}/m3/processWriteOffsFromM1Part/',
+    )
+
+    baixar_arquivos_s3(
+        bucket_name=bucket_name,
+        s3_keys=caminho_error_report,
+        pasta_destino=destino
+    )

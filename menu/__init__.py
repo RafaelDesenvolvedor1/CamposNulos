@@ -174,6 +174,9 @@ def escolherCliente(destino):
                 destino=destino
             )
         case 1:
-            print("Em breve")
+            bk_main.bx_cred(
+                transactionuid=input("Informe a transaction: "),
+                destino=destino
+            )
         case _:
             return None

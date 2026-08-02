@@ -6,6 +6,8 @@
 """
 
 import pathlib
+from unittest import case
+
 import pandas as pd
 import sys
 from simple_term_menu import TerminalMenu
@@ -197,7 +199,11 @@ def processarArquivo(caminho_base, coluna):
 
 
     # 2.1 Buscar o arquivo da baixa no bucket
-    menu.escolherCliente(destino=pasta_original)
+    match menu.menu_dinamico(['Sim', 'Não'], 'Quer buscar o arquivo no bucket?'):
+        case 0:
+            menu.escolherCliente(destino=pasta_original)
+
+
 
     # 2.2 Listar arquivos disponíveis na pasta "orig" correspondente
     arquivos = listarArquivos(pasta_original)
