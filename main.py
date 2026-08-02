@@ -10,6 +10,7 @@ import pandas as pd
 import sys
 from simple_term_menu import TerminalMenu
 import menu
+from bucket.main import bx_vox
 
 
 def renderizarMenu():
@@ -83,7 +84,6 @@ def listarArquivos(caminho):
     arquivos = [item.name for item in pasta.glob('*.csv') if item.is_file()]
     return arquivos
 
-
 # ALTERADO: Adicionada opção de voltar ao menu principal
 def escolherArquivo(lista_arquivos):
     # Criamos uma nova lista com a opção de voltar no topo
@@ -122,7 +122,6 @@ def analisarCSV(arquivo, coluna, valores_remover=None):
 
     return df, indices
 
-
 # 4.1 - Lê o arquivo de erro e extrai os N_DOCs (4ª coluna / índice 3)
 def analisarNdocs(caminho_erro):
     if not caminho_erro.exists():
@@ -141,12 +140,10 @@ def analisarNdocs(caminho_erro):
 
     return list(set(documentos_limpos))
 
-
 # 5 - Vai pegar a lista do passo anterior, excluir as linhas do arquivo.csv.
 def excluirLinhas(df_original, linhasExcluir):
     df_novo = df_original.drop(index=linhasExcluir)
     return df_novo
-
 
 # 6 - Após apagar as linhas, vai salvar o arquivo modificado na pasta 'mod'.
 def modificarSalvar(arquivoEntrada, arquivoSaida, coluna):
@@ -175,7 +172,6 @@ def modificarSalvar(arquivoEntrada, arquivoSaida, coluna):
         df_final.to_csv(arquivoSaida, index=False, sep=';', encoding='utf-8-sig')
         return df_final
 
-
 # 7 - Vai somar todos os valores da coluna 'Valor operacional'
 def somarColuna(df):
     if 'VALOR_OPR' in df.columns:
@@ -184,12 +180,10 @@ def somarColuna(df):
         total = pd.to_numeric(df[5], errors='coerce').sum()
     return total
 
-
 def criarArquivoTXT(diretorio, nome_arquivo, soma_valor):
     diretorioFinal = pathlib.Path(diretorio) / "Historico_Somas.txt"
     with open(diretorioFinal, mode='a', encoding='utf-8') as f:
         f.write(f"Arquivo: {nome_arquivo} | Soma: R$ {soma_valor:.2f} \n")
-
 
 # NOME DO MÉTODO ATUALIZADO: fluxo genérico para processar qualquer limpeza de arquivo
 def processarArquivo(caminho_base, coluna):
@@ -201,7 +195,11 @@ def processarArquivo(caminho_base, coluna):
     pasta_original = pasta_selecionada / "orig"
     pasta_modificado = pasta_selecionada / "mod"
 
-    # 2. Listar arquivos disponíveis na pasta "orig" correspondente
+
+    # 2.1 Buscar o arquivo da baixa no bucket
+    menu.escolherCliente(destino=pasta_original)
+
+    # 2.2 Listar arquivos disponíveis na pasta "orig" correspondente
     arquivos = listarArquivos(pasta_original)
 
     if not arquivos:

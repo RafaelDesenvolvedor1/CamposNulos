@@ -1,6 +1,7 @@
 import sys
 import pathlib
 import questionary
+import bucket.main as bk_main
 
 # Arquivos de persistência de cache
 CACHE_FILE = pathlib.Path(__file__).parent / ".path_cache"
@@ -130,7 +131,6 @@ def escolherDir(forçar_selecao=False):
         else:
             diretorio_atual = diretorio_atual / opcao_selecionada
 
-
 def escolherAcao():
     opcoes_acao = [
         "Criar Pastas",
@@ -157,3 +157,23 @@ def escolherAcao():
 def menu_dinamico(filesList, titulo="Selecione a opção:"):
     opcoes_str = [str(item) for item in filesList]
     return menu_select(opcoes_str, titulo)
+
+def escolherCliente(destino):
+    cliente = menu_dinamico(
+        filesList= [
+            'Voxcred',
+            'Crediffato'
+        ],
+        titulo='Escolha o projeto:'
+    )
+
+    match cliente:
+        case 0:
+            bk_main.bx_vox(
+                transactionuid=input("Informe a transaction: "),
+                destino=destino
+            )
+        case 1:
+            print("Em breve")
+        case _:
+            return None

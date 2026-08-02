@@ -6,3 +6,6 @@ questionary==2.1.1
 simple-term-menu==1.6.6
 six==1.17.0
 wcwidth==0.8.2
+
+python-dotenv
+boto3
