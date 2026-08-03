@@ -204,7 +204,6 @@ def processarArquivo(caminho_base, coluna):
             menu.escolherCliente(destino=pasta_original)
 
 
-
     # 2.2 Listar arquivos disponíveis na pasta "orig" correspondente
     arquivos = listarArquivos(pasta_original)
 
@@ -239,6 +238,12 @@ def processarArquivo(caminho_base, coluna):
         print(f"� Arquivo original marcado como processado: '{novo_nome}'")
 
     print(f"\n✅ Sucesso! Arquivo gerado e salvo na pasta 'mod'.")
+
+#     7. Enviar para o bucket
+    match menu.menu_dinamico(['Sim', 'Não'], 'Quer enviar o arquivo para o bucket?'):
+        case 0:
+            menu.enviarParaCliente(orig=pasta_modificado)
+
 
 
 def main():

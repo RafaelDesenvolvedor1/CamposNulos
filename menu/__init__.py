@@ -180,3 +180,26 @@ def escolherCliente(destino):
             )
         case _:
             return None
+
+def enviarParaCliente(orig):
+    cliente = menu_dinamico(
+        filesList= [
+            'Voxcred',
+            'Crediffato'
+        ],
+        titulo='Escolha o projeto:'
+    )
+
+    match cliente:
+        case 0:
+            bk_main.enviar_bx_vox(
+                transactionuid=input("Informe a transaction: "),
+                origem=orig
+            )
+        case 1:
+            bk_main.enviar_bx_cred(
+                transactionuid=input("Informe a transaction: "),
+                origem=orig
+            )
+        case _:
+            return None

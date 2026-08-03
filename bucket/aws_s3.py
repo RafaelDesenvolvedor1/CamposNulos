@@ -1,6 +1,7 @@
 import os
 import boto3
 import dotenv
+from pathlib import Path
 
 dotenv.load_dotenv()
 
@@ -29,8 +30,6 @@ def buscar_arquivos(bucket_name, caminho):
                 arquivos.append(item['Key'])
 
     return arquivos
-
-print(buscar_arquivos('backend-prd-bauk', 'voxcred/bcard-prd/4a7936cb-8840-4d81-b25f-c8c422caa762/m1/downloadFile/'))
 
 def baixar_arquivos_s3(bucket_name, s3_keys, pasta_destino="downloads"):
     """
@@ -81,3 +80,45 @@ def baixar_arquivos_s3(bucket_name, s3_keys, pasta_destino="downloads"):
         return False
 # print(listar_vox())
 
+from pathlib import Path
+
+def substituir_arquivo_s3(bucket_name, pasta_local, s3_key_destino):
+    """
+    pasta_local: Caminho da pasta na sua máquina onde está o arquivo gerado (ex: 'meus_downloads')
+    s3_key_destino: A Key (caminho completo com o nome do arquivo) no S3 que será substituído
+    """
+    diretorio = Path(pasta_local)
+
+    # 1. Verifica se a pasta local realmente existe e é um diretório
+    if not diretorio.exists() or not diretorio.is_dir():
+        print(f"Erro: A pasta local '{pasta_local}' não foi encontrada ou não é um diretório.")
+        return False
+
+    # 2. O Pulo do Gato: Busca o primeiro arquivo .csv dentro da pasta
+    # O método 'glob' procura por padrões. *.csv pega qualquer arquivo que termine com .csv
+    arquivos_csv = list(diretorio.glob("*.csv"))
+
+    if not arquivos_csv:
+        print(f"Erro: Nenhum arquivo .csv encontrado dentro de '{pasta_local}'.")
+        return False
+
+    # Pegamos o primeiro CSV encontrado na pasta
+    arquivo_path = arquivos_csv[0]
+
+    try:
+        # A s3_key_destino continua sendo o caminho completo que você já usava (ex: voxcred/.../downloadFile/BX_126...)
+        print(f"Enviando local '{arquivo_path.name}' para substituir no S3 em: {s3_key_destino}...")
+
+        # O upload_file substitui o arquivo no S3 automaticamente se a Key for a mesma
+        s3_client.upload_file(
+            Filename=str(arquivo_path),
+            Bucket=bucket_name,
+            Key=s3_key_destino
+        )
+
+        print(f"✅ Arquivo '{arquivo_path.name}' enviado e substituído com sucesso no S3!")
+        return True
+
+    except Exception as e:
+        print(f"Erro ao enviar arquivo para o S3: {e}")
+        return False
